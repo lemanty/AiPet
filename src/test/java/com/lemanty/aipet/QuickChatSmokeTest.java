@@ -30,9 +30,23 @@ public final class QuickChatSmokeTest {
         }
         return null;
     }
-    private static void assertRightAligned() {
-        if(quick.getX()+quick.getWidth()!=pet.getX()+pet.getWidth())
-            throw new AssertionError("composer and pet right edges detached: " + quick.getBounds() + " / " + pet.getBounds());
+    private static Rectangle screenArea() {
+        var gc=pet.getGraphicsConfiguration(); Rectangle b=gc.getBounds();
+        Insets i=Toolkit.getDefaultToolkit().getScreenInsets(gc);
+        return new Rectangle(b.x+i.left,b.y+i.top,b.width-i.left-i.right,b.height-i.top-i.bottom);
+    }
+    private static void assertAligned() {
+        Rectangle area=screenArea();
+        int expected=Math.max(area.x,Math.min(pet.getX()+(pet.getWidth()-quick.getWidth())/2,area.x+area.width-quick.getWidth()));
+        if(quick.getX()!=expected) throw new AssertionError("composer not centered or edge-clamped: " + quick.getBounds() + " / " + pet.getBounds());
+    }
+    private static void checkPosition(int x) throws Exception {
+        SwingUtilities.invokeAndWait(() -> { pet.setLocation(x,pet.getY()); quick.follow(pet); });
+        settleNativeLayout();
+        SwingUtilities.invokeAndWait(() -> {
+            if(pet.getX()!=x) throw new AssertionError("following moved pet");
+            assertAligned();
+        });
     }
     private static void settleNativeLayout() throws Exception {
         CountDownLatch settled = new CountDownLatch(1);
@@ -76,7 +90,7 @@ public final class QuickChatSmokeTest {
             settleNativeLayout();
             SwingUtilities.invokeAndWait(() -> {
                 if(quick.getWidth()!=650 || quick.getHeight()!=112) throw new AssertionError("follow must preserve resized composer");
-                assertRightAligned();
+                assertAligned();
                 Rectangle stable=quick.getBounds();
                 for(int i=0;i<100;i++) quick.follow(pet);
                 if(!quick.getBounds().equals(stable)) throw new AssertionError("stationary pet caused composer movement: " + stable + " -> " + quick.getBounds());
@@ -92,15 +106,25 @@ public final class QuickChatSmokeTest {
             settleNativeLayout();
             SwingUtilities.invokeAndWait(() -> {
                 if(quick.getWidth()!=690 || quick.getHeight()!=128) throw new AssertionError("resize grip did not change both dimensions: " + quick.getSize());
-                assertRightAligned();
-                // A screen edge must move the pair together, never clamp the bar alone.
-                pet.setLocation(pet.getGraphicsConfiguration().getBounds().x,pet.getY());
-                quick.follow(pet);
-                assertRightAligned();
-                pet.setSize(190,190); quick.follow(pet);
-                assertRightAligned();
+                assertAligned();
                 quick.setComposerSize(570,64); quick.validate();
             });
+            settleNativeLayout();
+            Rectangle[] area={null};
+            SwingUtilities.invokeAndWait(() -> area[0]=screenArea());
+            checkPosition(area[0].x+area[0].width-pet.getWidth());
+            checkPosition(area[0].x+(area[0].width-pet.getWidth())/2);
+            checkPosition(area[0].x+80);
+            checkPosition(area[0].x+40);
+            checkPosition(area[0].x);
+            SwingUtilities.invokeAndWait(() -> {
+                Point before=pet.getLocation();
+                quick.setComposerSize(650,112);
+                if(!pet.getLocation().equals(before)) throw new AssertionError("resizing composer moved pet");
+                pet.setSize(190,190); quick.follow(pet);
+            });
+            settleNativeLayout();
+            SwingUtilities.invokeAndWait(() -> { assertAligned(); quick.setComposerSize(570,64); });
             settleNativeLayout();
             SwingUtilities.invokeAndWait(() -> {
                 // A double release must open the home; closing home must leave the composer alive.
@@ -119,7 +143,7 @@ public final class QuickChatSmokeTest {
             SwingUtilities.invokeAndWait(() -> {
                 try { capture(); } catch (Exception e) { throw new RuntimeException(e); }
             });
-            System.out.println("PASS: startup without dashboard, focusable floating composer, Enter sends to selected conversation, completion without opening dashboard, resize grip, right alignment on resize and screen edges, stable following, double-click open/hide/reopen home, home close");
+            System.out.println("PASS: startup without dashboard, focusable floating composer, Enter sends to selected conversation, completion without opening dashboard, resize grip, center alignment, gradual edge clamping, resize without moving pet, stable following, double-click open/hide/reopen home, home close");
         } finally {
             SwingUtilities.invokeAndWait(() -> { if (tasks!=null) tasks.close(); for (Window w : Window.getWindows()) w.dispose(); });
         }
