@@ -3,6 +3,8 @@ package com.lemanty.aipet.ui;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.*;
+import java.awt.image.BufferedImage;
+import java.awt.event.HierarchyEvent;
 
 /** Code-drawn placeholder character. Replace rendering with imported animation assets later. */
 public final class PetView extends JComponent {
@@ -11,23 +13,39 @@ public final class PetView extends JComponent {
     private Color accent = Theme.PURPLE;
     private double phase;
     private final Timer timer;
+    private BufferedImage frame;
+    private boolean lastBlink;
     public PetView() {
         setPreferredSize(new Dimension(150, 150)); setOpaque(false);
-        timer = new Timer(40, e -> { phase += .11; repaint(); });
+        setDoubleBuffered(false); // Submit a complete offscreen frame to the translucent surface.
+        timer = new Timer(120, e -> {
+            phase += mood == Mood.IDLE ? .12 : .11;
+            boolean blink = phase % 5 > 4.8;
+            if (mood != Mood.IDLE || blink != lastBlink) repaint();
+            lastBlink = blink;
+        });
+        timer.setCoalesce(true);
+        addHierarchyListener(e -> { if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0) updateTimer(); });
         getAccessibleContext();
-        setToolTipText("点击输入消息 · 拖动移动 · 右键设置");
+        setToolTipText("双击打开主页 · 单击输入 · 拖动移动");
     }
-    @Override public void addNotify() { super.addNotify(); timer.start(); }
+    @Override public void addNotify() { super.addNotify(); updateTimer(); }
     @Override public void removeNotify() { timer.stop(); super.removeNotify(); }
-    public void setMood(Mood mood) { this.mood = mood; repaint(); }
+    private void updateTimer() { if (isShowing()) timer.start(); else timer.stop(); }
+    public void setMood(Mood mood) { this.mood = mood; timer.setDelay(mood == Mood.IDLE ? 120 : 50); repaint(); }
     public void setAccent(Color accent) { this.accent = accent; repaint(); }
     @Override protected void paintComponent(Graphics graphics) {
-        Graphics2D g = (Graphics2D) graphics.create();
+        if (getWidth() <= 0 || getHeight() <= 0) return;
+        double dpi = Math.max(1, ((Graphics2D)graphics).getTransform().getScaleX());
+        int w = (int)Math.ceil(getWidth()*dpi), h = (int)Math.ceil(getHeight()*dpi);
+        if (frame == null || frame.getWidth()!=w || frame.getHeight()!=h) frame = new BufferedImage(w,h,BufferedImage.TYPE_INT_ARGB_PRE);
+        Graphics2D g = frame.createGraphics();
+        g.setComposite(AlphaComposite.Clear); g.fillRect(0,0,w,h); g.setComposite(AlphaComposite.SrcOver); g.scale(dpi,dpi);
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         double scale = Math.min(getWidth(), getHeight()) / 160.0;
         g.translate((getWidth()-160*scale)/2, (getHeight()-160*scale)/2); g.scale(scale, scale);
         g.setColor(new Color(94, 83, 145, 25)); g.fill(new Ellipse2D.Double(35, 137, 90, 12));
-        double bounce = Math.sin(phase) * (mood == Mood.HAPPY ? 9 : 2.5);
+        double bounce = mood == Mood.IDLE ? 0 : Math.sin(phase) * (mood == Mood.HAPPY ? 9 : 2.5);
         g.translate(mood == Mood.ERROR ? Math.sin(phase*3)*2 : 0, -bounce);
         g.setColor(accent);
         Path2D ear = new Path2D.Double(); ear.moveTo(39, 58); ear.lineTo(35, 20); ear.quadTo(53, 23, 66, 47); ear.closePath(); g.fill(ear);
@@ -38,7 +56,7 @@ public final class PetView extends JComponent {
         g.setColor(accent); g.fillOval(42, 125, 24, 16); g.fillOval(96, 125, 24, 16);
         g.setColor(Color.WHITE); g.fillRoundRect(41, 61, 79, 57, 33, 33);
         g.setColor(Theme.INK); g.setStroke(new BasicStroke(3.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        boolean blink = ((int)(phase * 10) % 120) > 114;
+        boolean blink = phase % 5 > 4.8;
         if (mood == Mood.HAPPY) { g.drawArc(55, 77, 12, 12, 0, 180); g.drawArc(95, 77, 12, 12, 0, 180); }
         else if (blink) { g.drawLine(56, 84, 65, 84); g.drawLine(96, 84, 105, 84); }
         else { g.fillOval(57, 76, 8, 13); g.fillOval(97, 76, 8, 13); }
@@ -53,5 +71,6 @@ public final class PetView extends JComponent {
         if (mood == Mood.HAPPY) { g.setColor(new Color(236, 177, 69)); g.drawLine(139, 52, 149, 52); g.drawLine(144, 47, 144, 57); }
         if (mood == Mood.ERROR) { g.setColor(Theme.RED); g.fillOval(130, 30, 21, 21); g.setColor(Color.WHITE); g.setFont(new Font("SansSerif", Font.BOLD, 16)); g.drawString("!", 138, 47); }
         g.dispose();
+        graphics.drawImage(frame,0,0,getWidth(),getHeight(),null);
     }
 }

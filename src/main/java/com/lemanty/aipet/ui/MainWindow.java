@@ -63,8 +63,8 @@ public final class MainWindow extends JFrame {
         quickChat = new QuickChatWindow(tasks, adapter.conversations(), this::select, this::openTask, this::showPanel);
         quickChat.setAlwaysOnTop(floating.isAlwaysOnTop());
         floating.addComponentListener(new ComponentAdapter() {
-            public void componentMoved(ComponentEvent e) { quickChat.follow(floating); }
-            public void componentResized(ComponentEvent e) { quickChat.follow(floating); }
+            public void componentMoved(ComponentEvent e) { quickChat.scheduleFollow(floating); }
+            public void componentResized(ComponentEvent e) { quickChat.scheduleFollow(floating); }
         });
         applyAccent();
         resetMood = new javax.swing.Timer(4000, e -> setMood(activeCount() > 0 ? PetView.Mood.THINKING : PetView.Mood.IDLE));
@@ -164,13 +164,31 @@ public final class MainWindow extends JFrame {
         settings.add(colors); settings.add(Box.createVerticalStrut(14)); settings.add(Theme.label("桌宠大小", 13, Theme.MUTED, false));
         JSlider size = new JSlider(100, 230, floating.getWidth()); size.setOpaque(false); size.setAlignmentX(Component.LEFT_ALIGNMENT); size.setMaximumSize(new Dimension(380, 44)); size.addChangeListener(e -> { floating.setSize(size.getValue(), size.getValue()); if (!size.getValueIsAdjusting()) prefs.putInt("petSize", size.getValue()); }); settings.add(size);
         JCheckBox top = new JCheckBox("桌宠始终置顶", floating.isAlwaysOnTop()); top.setOpaque(false); top.setAlignmentX(Component.LEFT_ALIGNMENT); top.addActionListener(e -> { floating.setAlwaysOnTop(top.isSelected()); quickChat.setAlwaysOnTop(top.isSelected()); prefs.putBoolean("petOnTop", top.isSelected()); }); settings.add(top);
+        settings.add(Box.createVerticalStrut(12)); settings.add(Theme.label("输入栏大小（也可拖动右下角）", 13, Theme.MUTED, false));
+        JPanel dimensions = Theme.row();
+        JSpinner barWidth = new JSpinner(new SpinnerNumberModel(quickChat.getWidth(), QuickChatWindow.MIN_WIDTH, QuickChatWindow.MAX_WIDTH, 20));
+        JSpinner barHeight = new JSpinner(new SpinnerNumberModel(quickChat.getHeight(), QuickChatWindow.MIN_HEIGHT, QuickChatWindow.MAX_HEIGHT, 8));
+        barWidth.setPreferredSize(new Dimension(75, 30)); barHeight.setPreferredSize(new Dimension(75, 30));
+        dimensions.add(new JLabel("宽")); dimensions.add(barWidth); dimensions.add(new JLabel("高")); dimensions.add(barHeight); settings.add(dimensions);
+        boolean[] syncingSize = {false};
+        barWidth.addChangeListener(e -> { if (!syncingSize[0]) quickChat.setComposerSize((int)barWidth.getValue(),(int)barHeight.getValue()); });
+        barHeight.addChangeListener(e -> { if (!syncingSize[0]) quickChat.setComposerSize((int)barWidth.getValue(),(int)barHeight.getValue()); });
+        quickChat.addComponentListener(new ComponentAdapter() {
+            public void componentResized(ComponentEvent e) {
+                syncingSize[0] = true;
+                try {
+                    if (!barWidth.getValue().equals(quickChat.getWidth())) barWidth.setValue(quickChat.getWidth());
+                    if (!barHeight.getValue().equals(quickChat.getHeight())) barHeight.setValue(quickChat.getHeight());
+                } finally { syncingSize[0] = false; }
+            }
+        });
         JCheckBox notify = new JCheckBox("显示完成 / 出错提醒", notifications); notify.setOpaque(false); notify.setAlignmentX(Component.LEFT_ALIGNMENT); notify.addActionListener(e -> { notifications = notify.isSelected(); prefs.putBoolean("notifications", notifications); }); settings.add(notify);
         settings.add(Box.createVerticalStrut(20)); settings.add(Theme.label("动作预览", 16, Theme.INK, true)); settings.add(Box.createVerticalStrut(12));
         JPanel moods = Theme.row(); String[] labels = {"待机", "思考", "完成", "出错"};
         for (int i=0;i<labels.length;i++) { final PetView.Mood mood = PetView.Mood.values()[i]; JButton b = Theme.button(labels[i], false); b.addActionListener(e -> { setMood(mood); resetMood.restart(); }); moods.add(b); } settings.add(moods);
         settings.add(Box.createVerticalStrut(20)); settings.add(Theme.text("当前提供内置角色的颜色、大小和动作预览。\n自定义素材导入、动作编辑及事件映射将在后续实现。\n聊天演示记录仅保存在本次运行内，外观设置会保存到本机。"));
-        JButton clear = Theme.button("清除已保存的外观设置", false); clear.addActionListener(e -> { prefs.remove("accent"); prefs.remove("petSize"); prefs.remove("petOnTop"); prefs.remove("notifications"); accent = Theme.PURPLE; applyAccent(); size.setValue(160); top.setSelected(true); floating.setAlwaysOnTop(true); quickChat.setAlwaysOnTop(true); notifications = true; notify.setSelected(true); }); settings.add(clear);
-        panel.add(settings, BorderLayout.CENTER); preview.setPreferredSize(new Dimension(170, 200)); panel.add(preview, BorderLayout.EAST); return panel;
+        JButton clear = Theme.button("清除已保存的外观设置", false); clear.addActionListener(e -> { prefs.remove("accent"); prefs.remove("petSize"); prefs.remove("petOnTop"); prefs.remove("notifications"); accent = Theme.PURPLE; applyAccent(); size.setValue(160); top.setSelected(true); floating.setAlwaysOnTop(true); quickChat.setAlwaysOnTop(true); notifications = true; notify.setSelected(true); quickChat.setComposerSize(570,64); }); settings.add(clear);
+        JScrollPane settingsScroll = new JScrollPane(settings); settingsScroll.setBorder(null); settingsScroll.getViewport().setBackground(Color.WHITE); settingsScroll.getVerticalScrollBar().setUnitIncrement(18); panel.add(settingsScroll, BorderLayout.CENTER); preview.setPreferredSize(new Dimension(170, 200)); panel.add(preview, BorderLayout.EAST); return panel;
     }
 
     private JPanel buildFooter() {
