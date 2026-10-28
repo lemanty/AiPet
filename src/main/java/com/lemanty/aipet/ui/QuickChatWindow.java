@@ -15,7 +15,7 @@ import java.util.prefs.Preferences;
 
 /** An opaque, optionally shaped composer avoids translucent-window caret repaint flashes. */
 public final class QuickChatWindow extends JFrame {
-    public static final int MIN_WIDTH = 220, MAX_WIDTH = 900, MIN_HEIGHT = 64, MAX_HEIGHT = 200;
+    public static final int MIN_WIDTH = 320, MAX_WIDTH = 900, MIN_HEIGHT = 44, MAX_HEIGHT = 200;
     private static final Color BACKGROUND = new Color(228,229,235);
     private final Preferences prefs = Preferences.userNodeForPackage(QuickChatWindow.class);
     private final TaskManager tasks;
@@ -29,7 +29,7 @@ public final class QuickChatWindow extends JFrame {
             super.paintComponent(graphics);
             if (getText().isEmpty()) {
                 Graphics2D g = (Graphics2D)graphics.create(); g.setColor(new Color(125,128,140)); g.setFont(getFont());
-                g.drawString(getWidth()<200 ? "输入…" : "直接输入，和 AI 聊聊…", 2, getFontMetrics(getFont()).getAscent()+getInsets().top); g.dispose();
+                g.drawString("直接输入，和 AI 聊聊…", 2, getFontMetrics(getFont()).getAscent()+getInsets().top); g.dispose();
             }
         }
     };
@@ -69,7 +69,18 @@ public final class QuickChatWindow extends JFrame {
         send.setName("quick-send"); send.addActionListener(e -> submit()); capsule.add(centered(send),BorderLayout.EAST);
         JComponent grip = resizeGrip();
         JLayeredPane layers = new JLayeredPane() {
-            @Override public void doLayout() { capsule.setBounds(0,0,getWidth(),getHeight()); grip.setBounds(getWidth()-25,getHeight()-22,19,17); }
+            @Override public void doLayout() {
+                int padding=Math.max(5,Math.min(11,(getHeight()-34)/2));
+                if(capsule.getInsets().top!=padding) capsule.setBorder(new EmptyBorder(padding,12,padding,18));
+                int buttonSize=Math.min(42,getHeight()-padding*2);
+                if(choose.getPreferredSize().height!=buttonSize) {
+                    Dimension size=new Dimension(buttonSize,buttonSize);
+                    choose.setPreferredSize(size); send.setPreferredSize(size);
+                }
+                int textTop=Math.min(9,Math.max(0,(getHeight()-padding*2-input.getFontMetrics(input.getFont()).getHeight())/2));
+                if(input.getInsets().top!=textTop) input.setBorder(new EmptyBorder(textTop,0,0,0));
+                capsule.setBounds(0,0,getWidth(),getHeight()); grip.setBounds(getWidth()-25,getHeight()-22,19,17);
+            }
         };
         layers.setOpaque(true); layers.setBackground(BACKGROUND); layers.add(capsule,JLayeredPane.DEFAULT_LAYER); layers.add(grip,JLayeredPane.PALETTE_LAYER); setContentPane(layers);
         JPopupMenu menu = new JPopupMenu();
