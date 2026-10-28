@@ -15,7 +15,7 @@ import java.util.prefs.Preferences;
 
 /** An opaque, optionally shaped composer avoids translucent-window caret repaint flashes. */
 public final class QuickChatWindow extends JFrame {
-    public static final int MIN_WIDTH = 320, MAX_WIDTH = 900, MIN_HEIGHT = 64, MAX_HEIGHT = 200;
+    public static final int MIN_WIDTH = 220, MAX_WIDTH = 900, MIN_HEIGHT = 64, MAX_HEIGHT = 200;
     private static final Color BACKGROUND = new Color(228,229,235);
     private final Preferences prefs = Preferences.userNodeForPackage(QuickChatWindow.class);
     private final TaskManager tasks;
@@ -29,7 +29,7 @@ public final class QuickChatWindow extends JFrame {
             super.paintComponent(graphics);
             if (getText().isEmpty()) {
                 Graphics2D g = (Graphics2D)graphics.create(); g.setColor(new Color(125,128,140)); g.setFont(getFont());
-                g.drawString("直接输入，和 AI 聊聊…", 2, getFontMetrics(getFont()).getAscent()+getInsets().top); g.dispose();
+                g.drawString(getWidth()<200 ? "输入…" : "直接输入，和 AI 聊聊…", 2, getFontMetrics(getFont()).getAscent()+getInsets().top); g.dispose();
             }
         }
     };
