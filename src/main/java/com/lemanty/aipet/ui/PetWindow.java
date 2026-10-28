@@ -7,7 +7,8 @@ import java.awt.event.*;
 public final class PetWindow extends JWindow {
     public final PetView pet = new PetView();
     private final Timer singleClick;
-    public PetWindow(Runnable open, Runnable dashboard) {
+    private final WindowFrameBuffer surface = new WindowFrameBuffer();
+    public PetWindow(Runnable open, Runnable toggleDashboard, Runnable dashboard) {
         Object interval = Toolkit.getDefaultToolkit().getDesktopProperty("awt.multiClickInterval");
         singleClick = new Timer(interval instanceof Number n ? n.intValue() : 400, e -> open.run());
         singleClick.setRepeats(false);
@@ -16,6 +17,7 @@ public final class PetWindow extends JWindow {
         if (device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT)) setBackground(new Color(0, 0, 0, 0));
         else getContentPane().setBackground(Theme.BG);
         setContentPane(pet);
+        pet.setFrameRequester(this::repaint);
         Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
         setLocation(screen.x+screen.width-195, screen.y+screen.height-305);
         MouseAdapter drag = new MouseAdapter() {
@@ -32,8 +34,8 @@ public final class PetWindow extends JWindow {
             }
             public void mouseReleased(MouseEvent e) {
                 if (!moved && SwingUtilities.isLeftMouseButton(e)) {
-                    if (e.getClickCount() >= 2) { singleClick.stop(); dashboard.run(); }
-                    else singleClick.restart();
+                    if (e.getClickCount() >= 2 && e.getClickCount() % 2 == 0) { singleClick.stop(); toggleDashboard.run(); }
+                    else if (e.getClickCount() == 1) singleClick.restart();
                 }
                 start = null;
             }
@@ -45,5 +47,10 @@ public final class PetWindow extends JWindow {
         JMenuItem quit = new JMenuItem("退出 AiPet"); quit.addActionListener(e -> { dispose(); System.exit(0); }); menu.add(quit);
         pet.setComponentPopupMenu(menu);
     }
+    @Override public void paint(Graphics graphics) {
+        if (surface == null) { super.paint(graphics); return; }
+        surface.paint(graphics, getWidth(), getHeight(), back -> super.paint(back));
+    }
+    @Override public void update(Graphics graphics) { paint(graphics); }
     @Override public void dispose() { singleClick.stop(); super.dispose(); }
 }

@@ -39,7 +39,9 @@ public final class QuickChatSmokeTest {
         BufferedImage image = new BufferedImage(660, 340, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics(); g.setColor(new Color(29,30,34)); g.fillRect(0,0,660,340);
         for (Window w : Window.getWindows()) if (w instanceof PetWindow pet) {
-            Graphics2D p = (Graphics2D)g.create(460,20,160,160); pet.pet.setSize(160,160); pet.pet.paint(p); p.dispose();
+            BufferedImage petLayer = new BufferedImage(pet.getWidth(),pet.getHeight(),BufferedImage.TYPE_INT_ARGB);
+            Graphics2D p = petLayer.createGraphics(); pet.paint(p); p.dispose();
+            g.drawImage(petLayer,460,20,160,160,null);
         }
         Graphics2D q = (Graphics2D) g.create(40,205,quick.getWidth(),quick.getHeight()); if (quick.getShape()!=null) q.clip(quick.getShape()); quick.getContentPane().paint(q); q.dispose(); g.dispose();
         Files.createDirectories(Path.of("out/preview")); ImageIO.write(image,"png",Path.of("out/preview/quick-chat.png").toFile());
@@ -94,6 +96,10 @@ public final class QuickChatSmokeTest {
                 var doubleClick = new java.awt.event.MouseEvent(pet.pet,java.awt.event.MouseEvent.MOUSE_RELEASED,0,0,20,20,point.x+20,point.y+20,2,false,java.awt.event.MouseEvent.BUTTON1);
                 for(var listener:pet.pet.getMouseListeners()) listener.mouseReleased(doubleClick);
                 if(!dashboard.isVisible()) throw new AssertionError("double click did not open home");
+                for(var listener:pet.pet.getMouseListeners()) listener.mouseReleased(doubleClick);
+                if(dashboard.isVisible() || !quick.isVisible() || !pet.isVisible()) throw new AssertionError("second double click must hide only home");
+                for(var listener:pet.pet.getMouseListeners()) listener.mouseReleased(doubleClick);
+                if(!dashboard.isVisible()) throw new AssertionError("third double click must reopen home");
                 dashboard.dispatchEvent(new java.awt.event.WindowEvent(dashboard,java.awt.event.WindowEvent.WINDOW_CLOSING));
                 if(dashboard.isVisible() || !quick.isVisible() || !pet.isVisible()) throw new AssertionError("closing home must preserve pet and composer");
 
@@ -101,7 +107,7 @@ public final class QuickChatSmokeTest {
             SwingUtilities.invokeAndWait(() -> {
                 try { capture(); } catch (Exception e) { throw new RuntimeException(e); }
             });
-            System.out.println("PASS: startup without dashboard, focusable floating composer, Enter sends to selected conversation, completion without opening dashboard, resize grip, stable following, double-click home, home close");
+            System.out.println("PASS: startup without dashboard, focusable floating composer, Enter sends to selected conversation, completion without opening dashboard, resize grip, stable following, double-click open/hide/reopen home, home close");
         } finally {
             SwingUtilities.invokeAndWait(() -> { if (tasks!=null) tasks.close(); for (Window w : Window.getWindows()) w.dispose(); });
         }

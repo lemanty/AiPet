@@ -3,7 +3,6 @@ package com.lemanty.aipet.ui;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.*;
-import java.awt.image.BufferedImage;
 import java.awt.event.HierarchyEvent;
 
 /** Code-drawn placeholder character. Replace rendering with imported animation assets later. */
@@ -13,34 +12,37 @@ public final class PetView extends JComponent {
     private Color accent = Theme.PURPLE;
     private double phase;
     private final Timer timer;
-    private BufferedImage frame;
     private boolean lastBlink;
+    private Runnable frameRequester;
     public PetView() {
         setPreferredSize(new Dimension(150, 150)); setOpaque(false);
-        setDoubleBuffered(false); // Submit a complete offscreen frame to the translucent surface.
+        setDoubleBuffered(true); // Embedded views keep normal Swing buffering.
         timer = new Timer(120, e -> {
             phase += mood == Mood.IDLE ? .12 : .11;
             boolean blink = phase % 5 > 4.8;
-            if (mood != Mood.IDLE || blink != lastBlink) repaint();
+            if (mood != Mood.IDLE || blink != lastBlink) requestFrame();
             lastBlink = blink;
         });
         timer.setCoalesce(true);
         addHierarchyListener(e -> { if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0) updateTimer(); });
         getAccessibleContext();
-        setToolTipText("双击打开主页 · 单击输入 · 拖动移动");
+        setToolTipText("双击显示/隐藏主页 · 单击输入 · 拖动移动");
     }
     @Override public void addNotify() { super.addNotify(); updateTimer(); }
     @Override public void removeNotify() { timer.stop(); super.removeNotify(); }
     private void updateTimer() { if (isShowing()) timer.start(); else timer.stop(); }
-    public void setMood(Mood mood) { this.mood = mood; timer.setDelay(mood == Mood.IDLE ? 120 : 50); repaint(); }
-    public void setAccent(Color accent) { this.accent = accent; repaint(); }
+    public void setFrameRequester(Runnable requester) {
+        frameRequester = requester;
+        setDoubleBuffered(requester == null);
+    }
+    private void requestFrame() {
+        if (frameRequester != null) frameRequester.run(); else repaint();
+    }
+    public void setMood(Mood mood) { this.mood = mood; timer.setDelay(mood == Mood.IDLE ? 120 : 50); requestFrame(); }
+    public void setAccent(Color accent) { this.accent = accent; requestFrame(); }
     @Override protected void paintComponent(Graphics graphics) {
         if (getWidth() <= 0 || getHeight() <= 0) return;
-        double dpi = Math.max(1, ((Graphics2D)graphics).getTransform().getScaleX());
-        int w = (int)Math.ceil(getWidth()*dpi), h = (int)Math.ceil(getHeight()*dpi);
-        if (frame == null || frame.getWidth()!=w || frame.getHeight()!=h) frame = new BufferedImage(w,h,BufferedImage.TYPE_INT_ARGB_PRE);
-        Graphics2D g = frame.createGraphics();
-        g.setComposite(AlphaComposite.Clear); g.fillRect(0,0,w,h); g.setComposite(AlphaComposite.SrcOver); g.scale(dpi,dpi);
+        Graphics2D g = (Graphics2D)graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         double scale = Math.min(getWidth(), getHeight()) / 160.0;
         g.translate((getWidth()-160*scale)/2, (getHeight()-160*scale)/2); g.scale(scale, scale);
@@ -71,6 +73,5 @@ public final class PetView extends JComponent {
         if (mood == Mood.HAPPY) { g.setColor(new Color(236, 177, 69)); g.drawLine(139, 52, 149, 52); g.drawLine(144, 47, 144, 57); }
         if (mood == Mood.ERROR) { g.setColor(Theme.RED); g.fillOval(130, 30, 21, 21); g.setColor(Color.WHITE); g.setFont(new Font("SansSerif", Font.BOLD, 16)); g.drawString("!", 138, 47); }
         g.dispose();
-        graphics.drawImage(frame,0,0,getWidth(),getHeight(),null);
     }
 }

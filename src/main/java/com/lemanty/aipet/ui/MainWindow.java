@@ -56,7 +56,7 @@ public final class MainWindow extends JFrame {
         accent = new Color(prefs.getInt("accent", Theme.PURPLE.getRGB()));
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         setMinimumSize(new Dimension(860, 620)); setSize(1120, 800); setLocationRelativeTo(null);
-        floating = new PetWindow(this::focusQuickInput, this::showPanel);
+        floating = new PetWindow(this::focusQuickInput, this::togglePanel, this::showPanel);
         floating.setAlwaysOnTop(prefs.getBoolean("petOnTop", true));
         int petSize = Math.max(100, Math.min(230, prefs.getInt("petSize", 160)));
         floating.setSize(petSize, petSize);
@@ -252,5 +252,8 @@ public final class MainWindow extends JFrame {
     private void applyAccent() { hero.setAccent(accent); preview.setAccent(accent); floating.pet.setAccent(accent); }
     private void setMood(PetView.Mood mood) { hero.setMood(mood); preview.setMood(mood); floating.pet.setMood(mood); }
     private void focusQuickInput() { quickChat.focusInput(); }
+    public void togglePanel() {
+        if (isVisible()) setVisible(false); else showPanel();
+    }
     public void showPanel() { setVisible(true); setState(Frame.NORMAL); toFront(); }
 }
