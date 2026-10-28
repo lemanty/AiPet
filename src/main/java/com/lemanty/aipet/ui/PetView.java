@@ -15,7 +15,7 @@ public final class PetView extends JComponent {
         setPreferredSize(new Dimension(150, 150)); setOpaque(false);
         timer = new Timer(40, e -> { phase += .11; repaint(); });
         getAccessibleContext();
-        setToolTipText("点击打开 AiPet · 拖动移动");
+        setToolTipText("点击输入消息 · 拖动移动 · 右键设置");
     }
     @Override public void addNotify() { super.addNotify(); timer.start(); }
     @Override public void removeNotify() { timer.stop(); super.removeNotify(); }

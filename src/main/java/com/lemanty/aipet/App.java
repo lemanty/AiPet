@@ -13,7 +13,7 @@ public final class App {
             DemoAdapter adapter = new DemoAdapter();
             TaskManager tasks = new TaskManager(adapter);
             Runtime.getRuntime().addShutdownHook(new Thread(tasks::close));
-            new MainWindow(adapter, tasks).setVisible(true);
+            new MainWindow(adapter, tasks); // Start with the pet and quick composer only.
         });
     }
 }

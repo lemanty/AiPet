@@ -6,14 +6,14 @@ import java.awt.event.*;
 
 public final class PetWindow extends JWindow {
     public final PetView pet = new PetView();
-    public PetWindow(Runnable open) {
+    public PetWindow(Runnable open, Runnable dashboard) {
         setSize(160, 160); setAlwaysOnTop(true); setFocusableWindowState(false);
         GraphicsDevice device = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
         if (device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT)) setBackground(new Color(0, 0, 0, 0));
         else getContentPane().setBackground(Theme.BG);
         setContentPane(pet);
         Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
-        setLocation(screen.x+screen.width-195, screen.y+screen.height-190);
+        setLocation(screen.x+screen.width-195, screen.y+screen.height-305);
         MouseAdapter drag = new MouseAdapter() {
             Point start, origin; boolean moved;
             public void mousePressed(MouseEvent e) { start = e.getLocationOnScreen(); origin = getLocation(); moved = false; }
@@ -26,7 +26,8 @@ public final class PetWindow extends JWindow {
         };
         pet.addMouseListener(drag); pet.addMouseMotionListener(drag);
         JPopupMenu menu = new JPopupMenu();
-        JMenuItem show = new JMenuItem("打开聊天面板"); show.addActionListener(e -> open.run()); menu.add(show);
+        JMenuItem show = new JMenuItem("输入消息"); show.addActionListener(e -> open.run()); menu.add(show);
+        JMenuItem settings = new JMenuItem("完整记录与设置"); settings.addActionListener(e -> dashboard.run()); menu.add(settings);
         JMenuItem quit = new JMenuItem("退出 AiPet"); quit.addActionListener(e -> { dispose(); System.exit(0); }); menu.add(quit);
         pet.setComponentPopupMenu(menu);
     }

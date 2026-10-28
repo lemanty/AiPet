@@ -17,6 +17,7 @@ public final class MainWindow extends JFrame {
     private final TaskManager tasks;
     private final Preferences prefs = Preferences.userNodeForPackage(MainWindow.class);
     private final PetWindow floating;
+    private final QuickChatWindow quickChat;
     private final PetView hero = new PetView();
     private final PetView preview = new PetView();
     private final JPanel sidebar = new JPanel(new BorderLayout(0, 18));
@@ -55,10 +56,16 @@ public final class MainWindow extends JFrame {
         accent = new Color(prefs.getInt("accent", Theme.PURPLE.getRGB()));
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         setMinimumSize(new Dimension(860, 620)); setSize(1120, 800); setLocationRelativeTo(null);
-        floating = new PetWindow(this::showPanel);
+        floating = new PetWindow(this::focusQuickInput, this::showPanel);
         floating.setAlwaysOnTop(prefs.getBoolean("petOnTop", true));
         int petSize = Math.max(100, Math.min(230, prefs.getInt("petSize", 160)));
         floating.setSize(petSize, petSize);
+        quickChat = new QuickChatWindow(tasks, adapter.conversations(), this::select, this::openTask, this::showPanel);
+        quickChat.setAlwaysOnTop(floating.isAlwaysOnTop());
+        floating.addComponentListener(new ComponentAdapter() {
+            public void componentMoved(ComponentEvent e) { quickChat.follow(floating); }
+            public void componentResized(ComponentEvent e) { quickChat.follow(floating); }
+        });
         applyAccent();
         resetMood = new javax.swing.Timer(4000, e -> setMood(activeCount() > 0 ? PetView.Mood.THINKING : PetView.Mood.IDLE));
         resetMood.setRepeats(false);
@@ -74,6 +81,7 @@ public final class MainWindow extends JFrame {
         conversationList.setSelectedIndex(0);
         addWindowListener(new WindowAdapter() { public void windowClosing(WindowEvent e) { setVisible(false); } });
         floating.setVisible(true);
+        quickChat.follow(floating); quickChat.setVisible(true);
     }
 
     private JPanel buildHeader() {
@@ -155,20 +163,20 @@ public final class MainWindow extends JFrame {
         }
         settings.add(colors); settings.add(Box.createVerticalStrut(14)); settings.add(Theme.label("桌宠大小", 13, Theme.MUTED, false));
         JSlider size = new JSlider(100, 230, floating.getWidth()); size.setOpaque(false); size.setAlignmentX(Component.LEFT_ALIGNMENT); size.setMaximumSize(new Dimension(380, 44)); size.addChangeListener(e -> { floating.setSize(size.getValue(), size.getValue()); if (!size.getValueIsAdjusting()) prefs.putInt("petSize", size.getValue()); }); settings.add(size);
-        JCheckBox top = new JCheckBox("桌宠始终置顶", floating.isAlwaysOnTop()); top.setOpaque(false); top.setAlignmentX(Component.LEFT_ALIGNMENT); top.addActionListener(e -> { floating.setAlwaysOnTop(top.isSelected()); prefs.putBoolean("petOnTop", top.isSelected()); }); settings.add(top);
+        JCheckBox top = new JCheckBox("桌宠始终置顶", floating.isAlwaysOnTop()); top.setOpaque(false); top.setAlignmentX(Component.LEFT_ALIGNMENT); top.addActionListener(e -> { floating.setAlwaysOnTop(top.isSelected()); quickChat.setAlwaysOnTop(top.isSelected()); prefs.putBoolean("petOnTop", top.isSelected()); }); settings.add(top);
         JCheckBox notify = new JCheckBox("显示完成 / 出错提醒", notifications); notify.setOpaque(false); notify.setAlignmentX(Component.LEFT_ALIGNMENT); notify.addActionListener(e -> { notifications = notify.isSelected(); prefs.putBoolean("notifications", notifications); }); settings.add(notify);
         settings.add(Box.createVerticalStrut(20)); settings.add(Theme.label("动作预览", 16, Theme.INK, true)); settings.add(Box.createVerticalStrut(12));
         JPanel moods = Theme.row(); String[] labels = {"待机", "思考", "完成", "出错"};
         for (int i=0;i<labels.length;i++) { final PetView.Mood mood = PetView.Mood.values()[i]; JButton b = Theme.button(labels[i], false); b.addActionListener(e -> { setMood(mood); resetMood.restart(); }); moods.add(b); } settings.add(moods);
         settings.add(Box.createVerticalStrut(20)); settings.add(Theme.text("当前提供内置角色的颜色、大小和动作预览。\n自定义素材导入、动作编辑及事件映射将在后续实现。\n聊天演示记录仅保存在本次运行内，外观设置会保存到本机。"));
-        JButton clear = Theme.button("清除已保存的外观设置", false); clear.addActionListener(e -> { prefs.remove("accent"); prefs.remove("petSize"); prefs.remove("petOnTop"); prefs.remove("notifications"); accent = Theme.PURPLE; applyAccent(); size.setValue(160); top.setSelected(true); floating.setAlwaysOnTop(true); notifications = true; notify.setSelected(true); }); settings.add(clear);
+        JButton clear = Theme.button("清除已保存的外观设置", false); clear.addActionListener(e -> { prefs.remove("accent"); prefs.remove("petSize"); prefs.remove("petOnTop"); prefs.remove("notifications"); accent = Theme.PURPLE; applyAccent(); size.setValue(160); top.setSelected(true); floating.setAlwaysOnTop(true); quickChat.setAlwaysOnTop(true); notifications = true; notify.setSelected(true); }); settings.add(clear);
         panel.add(settings, BorderLayout.CENTER); preview.setPreferredSize(new Dimension(170, 200)); panel.add(preview, BorderLayout.EAST); return panel;
     }
 
     private JPanel buildFooter() {
         JPanel footer = new JPanel(new BorderLayout(10, 0)); footer.setBorder(new EmptyBorder(10, 26, 14, 26)); footer.add(notice, BorderLayout.CENTER);
         JPanel actions = Theme.row(); latestButton.setVisible(false); latestButton.addActionListener(e -> { if (latest != null) { openTask(latest); } }); actions.add(latestButton);
-        JButton quit = Theme.button("退出", false); quit.addActionListener(e -> { tasks.close(); floating.dispose(); dispose(); System.exit(0); }); actions.add(quit); footer.add(actions, BorderLayout.EAST); return footer;
+        JButton quit = Theme.button("退出", false); quit.addActionListener(e -> { tasks.close(); quickChat.dispose(); floating.dispose(); dispose(); System.exit(0); }); actions.add(quit); footer.add(actions, BorderLayout.EAST); return footer;
     }
     private void refreshList(String search) {
         String id = selected == null ? "" : selected.id(); listModel.clear();
@@ -176,7 +184,7 @@ public final class MainWindow extends JFrame {
         for (int i=0;i<listModel.size();i++) if (listModel.get(i).id().equals(id)) conversationList.setSelectedIndex(i);
     }
     private void select(Conversation conversation) {
-        selected = conversation; target.setText(conversation.title()); source.setText(conversation.provider()+"  /  "+conversation.source()+"  ·  发送目标已选定");
+        selected = conversation; quickChat.select(conversation); target.setText(conversation.title()); source.setText(conversation.provider()+"  /  "+conversation.source()+"  ·  发送目标已选定");
         pages.show(content, "chat"); renderHistory(); updateSend();
     }
     private void send() {
@@ -186,6 +194,7 @@ public final class MainWindow extends JFrame {
         } catch (IllegalArgumentException | IllegalStateException ex) { JOptionPane.showMessageDialog(this, ex.getMessage(), "暂时无法发送", JOptionPane.INFORMATION_MESSAGE); }
     }
     private void taskChanged(TaskManager.Task task) {
+        quickChat.taskChanged(task, notifications);
         renderHistory(); updateSend(); conversationList.repaint();
         if (task.state() == TaskState.GENERATING) { resetMood.stop(); setMood(PetView.Mood.THINKING); }
         else {
@@ -224,5 +233,6 @@ public final class MainWindow extends JFrame {
     }
     private void applyAccent() { hero.setAccent(accent); preview.setAccent(accent); floating.pet.setAccent(accent); }
     private void setMood(PetView.Mood mood) { hero.setMood(mood); preview.setMood(mood); floating.pet.setMood(mood); }
+    private void focusQuickInput() { quickChat.focusInput(); }
     public void showPanel() { setVisible(true); setState(Frame.NORMAL); toFront(); }
 }
