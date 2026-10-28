@@ -30,6 +30,10 @@ public final class QuickChatSmokeTest {
         }
         return null;
     }
+    private static void assertRightAligned() {
+        if(quick.getX()+quick.getWidth()!=pet.getX()+pet.getWidth())
+            throw new AssertionError("composer and pet right edges detached: " + quick.getBounds() + " / " + pet.getBounds());
+    }
     private static void settleNativeLayout() throws Exception {
         CountDownLatch settled = new CountDownLatch(1);
         SwingUtilities.invokeLater(() -> { javax.swing.Timer t = new javax.swing.Timer(180,e -> settled.countDown()); t.setRepeats(false); t.start(); });
@@ -72,6 +76,7 @@ public final class QuickChatSmokeTest {
             settleNativeLayout();
             SwingUtilities.invokeAndWait(() -> {
                 if(quick.getWidth()!=650 || quick.getHeight()!=112) throw new AssertionError("follow must preserve resized composer");
+                assertRightAligned();
                 Rectangle stable=quick.getBounds();
                 for(int i=0;i<100;i++) quick.follow(pet);
                 if(!quick.getBounds().equals(stable)) throw new AssertionError("stationary pet caused composer movement: " + stable + " -> " + quick.getBounds());
@@ -87,6 +92,13 @@ public final class QuickChatSmokeTest {
             settleNativeLayout();
             SwingUtilities.invokeAndWait(() -> {
                 if(quick.getWidth()!=690 || quick.getHeight()!=128) throw new AssertionError("resize grip did not change both dimensions: " + quick.getSize());
+                assertRightAligned();
+                // A screen edge must move the pair together, never clamp the bar alone.
+                pet.setLocation(pet.getGraphicsConfiguration().getBounds().x,pet.getY());
+                quick.follow(pet);
+                assertRightAligned();
+                pet.setSize(190,190); quick.follow(pet);
+                assertRightAligned();
                 quick.setComposerSize(570,64); quick.validate();
             });
             settleNativeLayout();
@@ -107,7 +119,7 @@ public final class QuickChatSmokeTest {
             SwingUtilities.invokeAndWait(() -> {
                 try { capture(); } catch (Exception e) { throw new RuntimeException(e); }
             });
-            System.out.println("PASS: startup without dashboard, focusable floating composer, Enter sends to selected conversation, completion without opening dashboard, resize grip, stable following, double-click open/hide/reopen home, home close");
+            System.out.println("PASS: startup without dashboard, focusable floating composer, Enter sends to selected conversation, completion without opening dashboard, resize grip, right alignment on resize and screen edges, stable following, double-click open/hide/reopen home, home close");
         } finally {
             SwingUtilities.invokeAndWait(() -> { if (tasks!=null) tasks.close(); for (Window w : Window.getWindows()) w.dispose(); });
         }

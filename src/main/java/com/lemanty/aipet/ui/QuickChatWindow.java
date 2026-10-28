@@ -116,7 +116,13 @@ public final class QuickChatWindow extends JFrame {
         Rectangle area=usableArea(getGraphicsConfiguration());
         int w=Math.min(preferredWidth,area.width), h=Math.min(preferredHeight,area.height);
         Rectangle next=new Rectangle(clamp(getX(),area.x,area.x+area.width-w),clamp(getY(),area.y,area.y+area.height-h),w,h);
-        if(!getBounds().equals(next)) setBounds(next);
+        if (anchor != null) {
+            // Keep the composer's left edge under the user's drag, and move the pet
+            // with its new right edge. The same layout is used by settings and resets.
+            int petX = next.x + next.width - anchor.getWidth();
+            if (anchor.getX() != petX) anchor.setLocation(petX, anchor.getY());
+            positionAtPet();
+        } else if(!getBounds().equals(next)) setBounds(next);
         updateShape();
     }
     private void saveSize() { prefs.putInt("composerWidth",preferredWidth); prefs.putInt("composerHeight",preferredHeight); }
@@ -162,6 +168,9 @@ public final class QuickChatWindow extends JFrame {
         if(anchor==null) return;
         Rectangle area=usableArea(anchor.getGraphicsConfiguration()); int width=Math.min(preferredWidth,area.width), height=Math.min(preferredHeight,area.height);
         int x=clamp(anchor.getX()+anchor.getWidth()-width,area.x,area.x+area.width-width);
+        // Clamp the pair together at screen edges, rather than detaching the bar.
+        int petX = x + width - anchor.getWidth();
+        if (anchor.getX() != petX) anchor.setLocation(petX, anchor.getY());
         int y=anchor.getY()+anchor.getHeight()+4; if(y+height>area.y+area.height) y=anchor.getY()-height-4;
         Rectangle next=new Rectangle(x,clamp(y,area.y,area.y+area.height-height),width,height);
         if(!getBounds().equals(next)) setBounds(next);
