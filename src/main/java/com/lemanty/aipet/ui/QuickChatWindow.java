@@ -37,6 +37,7 @@ public final class QuickChatWindow extends JFrame {
     private final JMenuItem answerItem = new JMenuItem("暂无完成的回答");
     private final javax.swing.Timer followTimer;
     private Window anchor;
+    private final java.util.Map<String,String> drafts = new java.util.HashMap<>();
     private Conversation selected;
     private TaskManager.Task latest;
     private int preferredWidth, preferredHeight;
@@ -85,7 +86,7 @@ public final class QuickChatWindow extends JFrame {
         layers.setOpaque(true); layers.setBackground(BACKGROUND); layers.add(capsule,JLayeredPane.DEFAULT_LAYER); layers.add(grip,JLayeredPane.PALETTE_LAYER); setContentPane(layers);
         JPopupMenu menu = new JPopupMenu();
         JMenuItem home = new JMenuItem("打开主页"); home.addActionListener(e -> openHome.run()); menu.add(home);
-        answerItem.setEnabled(false); answerItem.addActionListener(e -> { if(latest!=null) onAnswer.accept(latest); }); menu.add(answerItem);
+        answerItem.setName("current-answer"); answerItem.setEnabled(false); answerItem.addActionListener(e -> { if(latest!=null) onAnswer.accept(latest); }); menu.add(answerItem);
         JMenuItem reset = new JMenuItem("恢复输入栏默认大小"); reset.addActionListener(e -> setComposerSize(570,64)); menu.add(reset);
         capsule.setComponentPopupMenu(menu); input.setComponentPopupMenu(menu); grip.setComponentPopupMenu(menu);
         addComponentListener(new ComponentAdapter() { public void componentResized(ComponentEvent e) { updateShape(); } });
@@ -138,14 +139,30 @@ public final class QuickChatWindow extends JFrame {
             setShape(new RoundRectangle2D.Double(0,0,getWidth(),getHeight(),Math.min(getHeight(),48),Math.min(getHeight(),48)));
         // Opaque rectangular fallback on systems without window shaping; never clear the whole window to transparent.
     }
-    public void select(Conversation conversation) { selected=conversation; updateSend(); }
+    public void select(Conversation conversation) {
+        if(java.util.Objects.equals(selected,conversation)) return;
+        if(selected!=null) drafts.put(selected.id(),input.getText());
+        selected=conversation;
+        input.setText(conversation==null?"":drafts.getOrDefault(conversation.id(),""));
+        updateSend();
+    }
+    private String conversationStatus(Conversation conversation) {
+        if(tasks.isBusy(conversation.id())) return "正在回答";
+        var history=tasks.tasks();
+        for(int i=history.size()-1;i>=0;i--) if(history.get(i).target().id().equals(conversation.id()))
+            return history.get(i).state()==TaskState.FAILED?"回答出错":"已有回答";
+        return "尚未发送";
+    }
     private void showPicker(Component component) {
-        picker.removeAll(); JMenuItem heading=new JMenuItem("选择已有对话 · 本地演示"); heading.setEnabled(false); picker.add(heading); picker.addSeparator();
-        for(Conversation conversation:conversations) {
-            JRadioButtonMenuItem item=new JRadioButtonMenuItem(conversation.provider()+" / "+conversation.title()+" · "+conversation.source(),conversation.equals(selected));
-            item.addActionListener(e -> { select(conversation); onSelect.accept(conversation); input.requestFocusInWindow(); }); picker.add(item);
-        }
+        picker.removeAll();
+        ConversationPicker panel=new ConversationPicker(conversations,selected,this::conversationStatus,conversation -> {
+            select(conversation); onSelect.accept(conversation); picker.setVisible(false); input.requestFocusInWindow();
+        });
+        Rectangle area=usableArea(getGraphicsConfiguration());
+        panel.setPreferredSize(new Dimension(Math.min(420,area.width-16),Math.min(330,area.height-16)));
+        picker.add(panel);
         picker.show(component,0,-picker.getPreferredSize().height);
+        SwingUtilities.invokeLater(panel::focusSearch);
     }
     private void submit() {
         if(selected==null || input.getText().isBlank() || tasks.isBusy(selected.id())) return;
@@ -153,12 +170,18 @@ public final class QuickChatWindow extends JFrame {
         catch(IllegalArgumentException|IllegalStateException ex) { input.setToolTipText("发送失败："+ex.getMessage()); }
     }
     public void taskChanged(TaskManager.Task task,boolean notify) {
-        if(task.state()!=TaskState.GENERATING && notify) {
-            latest=task; answerItem.setText((task.state()==TaskState.FAILED?"查看错误":"查看回答")+" · "+task.target().title()); answerItem.setEnabled(true);
-        }
         updateSend();
+        picker.repaint();
     }
     private void updateSend() {
+        latest=null;
+        var history=tasks.tasks();
+        for(int i=history.size()-1;i>=0;i--) {
+            var task=history.get(i);
+            if(selected!=null && task.target().id().equals(selected.id()) && task.state()!=TaskState.GENERATING) { latest=task; break; }
+        }
+        answerItem.setEnabled(latest!=null);
+        answerItem.setText(latest==null?"当前会话暂无回答":(latest.state()==TaskState.FAILED?"查看错误":"查看回答")+" · "+latest.target().title());
         boolean hasText=!input.getText().isBlank();
         send.setEnabled(selected!=null && hasText && !tasks.isBusy(selected.id()));
         String target=selected==null?"请选择对话":selected.provider()+" / "+selected.title();

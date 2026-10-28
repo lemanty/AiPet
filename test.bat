@@ -7,3 +7,5 @@ if errorlevel 1 exit /b 1
 java -Djava.awt.headless=true -cp out\test com.lemanty.aipet.TaskManagerTest
 if errorlevel 1 exit /b 1
 java -Djava.awt.headless=true -cp out\test com.lemanty.aipet.WindowFrameBufferTest
+if errorlevel 1 exit /b 1
+java -Djava.awt.headless=true -cp out\test com.lemanty.aipet.ConversationPickerTest
